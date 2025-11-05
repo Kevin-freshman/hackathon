@@ -281,6 +281,7 @@ def main():
 
     # live / paper 模式
     bot = TradingBot(client, symbol=args.symbol, timeframe=args.timeframe, strategy=SmaCross(short_window=args.short, long_window=args.long))
+    global DRY_RUN
     if args.mode == "live":
         if DRY_RUN:
             logger.warning("你当前处于 DRY_RUN 模式。若要开启真实下单，请在环境变量中设置 DRY_RUN=false 并谨慎操作。")
@@ -288,10 +289,11 @@ def main():
         bot.run_loop(interval_seconds=args.interval)
     elif args.mode == "paper":
         # paper 模式：强制模拟下单(覆盖 DRY_RUN)
-        global DRY_RUN
+        
         DRY_RUN = True
         logger.info("进入 PAPER 模式(强制模拟下单)")
         bot.run_loop(interval_seconds=args.interval)
 
 if __name__ == "__main__":
     main()
+
