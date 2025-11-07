@@ -56,7 +56,7 @@ class ExchangeClient:
         half = limit//3
         trend = np.concatenate([
             np.linspace(0, -2000, half),  # 下跌 1500 点
-            np.linspace(-2000, 1000, limit-half),  # 反弹 3500 点
+            np.linspace(-2000, 1000, half),  # 反弹 3500 点
             np.linspace(-1000, 4000, limit - 2*half)
         ])
         noise = np.random.randn(limit) * 200  # 适中波动
