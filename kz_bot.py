@@ -180,7 +180,7 @@ class TradingBot:
             long_ma = close.rolling(window=long_window).mean()
 
             # 计算信号（均线交叉）
-            signal = 1
+            signal = 0
             if short_ma.iloc[-2] < long_ma.iloc[-2] and short_ma.iloc[-1] > long_ma.iloc[-1]:
                 signal = 1  # 金叉 → 买入
             elif short_ma.iloc[-2] > long_ma.iloc[-2] and short_ma.iloc[-1] < long_ma.iloc[-1]:
@@ -238,9 +238,7 @@ class TradingBot:
             if not hasattr(self, 'signals'):
                 self.signals = []
             self.signals.append(signal)
-            if len(self.signals) > 60:
-                self.signals.pop(0)
-            logger.info(f"最近60个信号: {self.signals}")
+            logger.info(f"最近60个信号: {self.signals.tail(60).tolist()}")
 
         except Exception as e:
             logger.error("step 出错", exc_info=True)
