@@ -56,7 +56,7 @@ class ExchangeClient:
         # --- 1️⃣ 明显的先涨后跌趋势 ---
         half = limit // 2
         up_trend = np.linspace(0, 3000, half)
-        down_trend = np.linspace(3000, -2000, limit - half)
+        down_trend = np.linspace(3000, 3200, limit - half)
         trend = np.concatenate([up_trend, down_trend])
 
         # --- 2️⃣ 加噪声制造局部波动 ---
@@ -70,14 +70,7 @@ class ExchangeClient:
         high = np.maximum(open_, close) + np.abs(np.random.randn(limit) * 50)
         low = np.minimum(open_, close) - np.abs(np.random.randn(limit) * 50)
         volume = np.random.randint(500, 1500, limit)
-
-        with open("/data/kline_scenarios.json", "r", encoding="utf-8") as f:
-            sc = json.load(f)
-
-        # 例如载入看涨吞没两根K线为 DataFrame:
-        df = pd.DataFrame(sc["bullish_engulfing"])
-
-        '''
+        
         df = pd.DataFrame({
             'open': open_,
             'high': high,
@@ -85,9 +78,8 @@ class ExchangeClient:
             'close': close,
             'volume': volume
         }, index=dates)
-        
-        '''
-
+        s
+    
         return df.tail(limit)
 
 
