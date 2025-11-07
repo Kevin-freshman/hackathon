@@ -32,7 +32,7 @@ DEFAULT_SYMBOL = os.getenv("DEFAULT_SYMBOL", "BTC/USD")
 DEFAULT_TIMEFRAME = os.getenv("DEFAULT_TIMEFRAME", "1h")
 DEFAULT_SINCE_DAYS = int(os.getenv("DEFAULT_SINCE_DAYS", "90"))
 INITIAL_CASH = float(os.getenv("INITIAL_CASH", "1000000.0"))
-TRADE_AMOUNT = float(os.getenv("TRADE_AMOUNT", "10000"))
+TRADE_AMOUNT = int(float(os.getenv("TRADE_AMOUNT", "10000")))TRADE_AMOUNT
 
 logger.add("bot.log", rotation="10 MB", retention="7 days", level="INFO")
 
@@ -72,8 +72,9 @@ class ExchangeClient:
             logger.info("[DRY_RUN] 模拟下单")
             return {"id": f"sim-{int(time.time()*1000)}", "status": "filled"}
         try:
-            pair = symbol.replace("/", "/")  # BTC/USD
-            return self.client.place_order(pair, side, amount, price)
+            pair = symbol  # BTC/USD
+            quantity = int(float(amount))  # 强制转为整数
+            return self.client.place_order(pair, side, quantity, price)
         except Exception:
             logger.exception("下单失败")
             raise
@@ -82,11 +83,19 @@ class ExchangeClient:
         try:
             data = self.client.get_balance()
             logger.debug(f"原始余额数据: {data}")
-            # Mock API 返回格式可能是 {"BTC": 1000000, "USD": 1000000}
-            return {k: float(v) for k, v in data.items()}
+            
+            spot = data.get("SpotWallet", {})
+            balances = {}
+            # 正确遍历所有币种
+            for currency, info in spot.items():
+                free = info.get("Free", 0)
+                lock = info.get("Lock", 0)
+                # 确保是数字
+                balances[currency] = float(free or 0) + float(lock or 0)
+            return balances
         except Exception as e:
-            logger.warning(f"获取余额失败: {e}，使用默认初始资金")
-            return {"USD": INITIAL_CASH, self.symbol.split("/")[0]: 0.0}
+            logger.warning(f"获取余额失败: {e}, 使用默认值")
+            return {"USD": INITIAL_CASH}
 
 # ========== 策略 ==========
 class SmaCross:
@@ -151,13 +160,14 @@ class TradingBot:
             coin = float(balance.get(coin_name, 0))
             logger.info(f"[{now_ts()}] 价格: {df['close'].iloc[-1]:.2f} | 信号: {signal} | 持仓: {coin} {self.symbol.split('/')[0]} | 现金: {usd} USD")
 
-            amount = TRADE_AMOUNT
+            amount = int(TRADE_AMOUNT)
             if signal == 1 and usd > amount:
                 order = self.client.create_order(self.symbol, "buy", amount)
                 if order:
                     self.position += amount
                     logger.info("买入成功")
             elif signal == -1 and coin > 0.001:
+                sell_amount = int(coin) if coin >= 1 else coin
                 order = self.client.create_order(self.symbol, "sell", coin)
                 if order:
                     self.position = 0
