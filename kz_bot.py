@@ -16,6 +16,7 @@ from loguru import logger
 from dotenv import load_dotenv
 import schedule
 import backtrader as bt
+import json
 
 from roostoo_client import RoostooClient
 
@@ -70,6 +71,13 @@ class ExchangeClient:
         low = np.minimum(open_, close) - np.abs(np.random.randn(limit) * 50)
         volume = np.random.randint(500, 1500, limit)
 
+        with open("/data/kline_scenarios.json", "r", encoding="utf-8") as f:
+            sc = json.load(f)
+
+        # 例如载入看涨吞没两根K线为 DataFrame:
+        df = pd.DataFrame(sc["bullish_engulfing"])
+
+        '''
         df = pd.DataFrame({
             'open': open_,
             'high': high,
@@ -77,6 +85,8 @@ class ExchangeClient:
             'close': close,
             'volume': volume
         }, index=dates)
+        
+        '''
 
         return df.tail(limit)
 
