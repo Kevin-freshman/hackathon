@@ -53,12 +53,12 @@ class ExchangeClient:
         dates = pd.date_range(end=datetime.utcnow(), periods=limit, freq='5min')  # 15min K线，更敏感
 
         # 价格曲线：前40根下跌，后60根上涨 → 必有交叉
-        half = 30
+        half = 60
         trend = np.concatenate([
-            np.linspace(0, -4000, limit-half),  # 下跌 1500 点
-            np.linspace(-4000, 6000, half)
+            np.linspace(0, -5000, limit-half),  # 下跌 1500 点
+            np.linspace(-5000, 8000, half)
         ])
-        noise = np.random.randn(limit) * 200  # 适中波动
+        noise = np.random.randn(limit) * 400  # 适中波动
         close = 30000 + trend + noise
         close = np.maximum(close, 20000)  # 防负数
 
