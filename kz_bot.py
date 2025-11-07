@@ -47,35 +47,39 @@ class ExchangeClient:
         logger.info(f"[{now_ts()}] 初始化 Roostoo Mock 客户端, DRY_RUN={DRY_RUN}")
 
     def fetch_ohlcv(self, symbol, timeframe, since=None, limit=200):
-        # 生成模拟 K 线（先跌后涨，易触发金叉/死叉）
-        logger.info("生成模拟 K 线数据（Mock API 无 OHLCV 接口，带趋势测试）")
-        np.random.seed(int(datetime.utcnow().timestamp()) % 10000)  # 固定种子 → 每次相同，便于演示
-        dates = pd.date_range(end=datetime.utcnow(), periods=limit, freq='5min')  # 15min K线，更敏感
+        logger.info("生成模拟 K 线数据（Mock API 无 OHLCV 接口，强制触发买卖）")
+        np.random.seed(int(datetime.utcnow().timestamp()) % 10000)
 
-        # 价格曲线：前40根下跌，后60根上涨 → 必有交叉
+        dates = pd.date_range(end=datetime.utcnow(), periods=limit, freq='5min')
+
+        # --- 1️⃣ 明显的先涨后跌趋势 ---
         half = limit // 2
-        trend = np.concatenate([
-            np.linspace(0, -2000, limit-half),  # 下跌 1500 点
-            np.linspace(-2000, 3000, half)
-        ])
-        noise = np.random.randn(limit) * 100  # 适中波动
-        close = 30000 + trend + noise
-        close = np.maximum(close, 20000)  # 防负数
+        up_trend = np.linspace(0, 3000, half)
+        down_trend = np.linspace(3000, -2000, limit - half)
+        trend = np.concatenate([up_trend, down_trend])
 
+        # --- 2️⃣ 加噪声制造局部波动 ---
+        noise = np.random.randn(limit) * 150
+        close = 29000 + trend + noise
+        close = np.maximum(close, 10000)
+
+        # --- 3️⃣ 生成K线 ---
         open_ = np.roll(close, 1)
         open_[0] = close[0]
-        high = np.maximum(open_, close) + abs(np.random.randn(limit) * 80)
-        low = np.minimum(open_, close) - abs(np.random.randn(limit) * 80)
+        high = np.maximum(open_, close) + np.abs(np.random.randn(limit) * 50)
+        low = np.minimum(open_, close) - np.abs(np.random.randn(limit) * 50)
+        volume = np.random.randint(500, 1500, limit)
 
         df = pd.DataFrame({
             'open': open_,
             'high': high,
             'low': low,
             'close': close,
-            'volume': np.random.randint(1000, 3000, limit)
+            'volume': volume
         }, index=dates)
-        df.iloc[0, 0] = df.iloc[0]['close']
+
         return df.tail(limit)
+
 
     def create_order(self, symbol, side, amount, price=None, order_type="market"):
         logger.info(f"[{now_ts()}] 下单请求: {side} {amount} {symbol} @ {order_type}")
@@ -186,6 +190,7 @@ class TradingBot:
             else:
                 logger.info("无信号")
             logger.info(f"最近60个信号: {signals.tail(60).tolist()}")
+            logger.debug(f"短均线={short_ma[-1]:.2f}, 长均线={long_ma[-1]:.2f}")
             
             
         except Exception:
