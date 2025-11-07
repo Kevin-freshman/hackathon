@@ -24,16 +24,22 @@ class MockTradingBot:
 
     # === 模拟生成价格数据 ===
     def fetch_ohlcv(self, limit=200):
-        """生成有波动趋势的虚拟 K 线"""
+        """生成模拟 K 线：前半下跌、后半上涨，确保出现金叉/死叉"""
         np.random.seed(int(time.time()) % 10000)
         dates = pd.date_range(end=datetime.utcnow(), periods=limit, freq='1min')
-        base = 30000 + np.sin(np.linspace(0, 6, limit)) * 1500
-        noise = np.random.randn(limit) * 200
-        close = base + noise
+
+        # 前 100 根下跌，后 100 根上涨
+        trend = np.concatenate([
+            np.linspace(30000, 26000, limit // 2),
+            np.linspace(26000, 31000, limit // 2)
+        ])
+        noise = np.random.randn(limit) * 150
+        close = trend + noise
+
         open_ = np.roll(close, 1)
         open_[0] = close[0]
-        high = np.maximum(open_, close) + abs(np.random.randn(limit) * 100)
-        low = np.minimum(open_, close) - abs(np.random.randn(limit) * 100)
+        high = np.maximum(open_, close) + abs(np.random.randn(limit) * 50)
+        low = np.minimum(open_, close) - abs(np.random.randn(limit) * 50)
         return pd.DataFrame({
             "open": open_,
             "high": high,
@@ -42,8 +48,9 @@ class MockTradingBot:
             "volume": np.random.randint(500, 5000, limit)
         }, index=dates)
 
+
     # === 简单移动均线策略 ===
-    def compute_signal(self, df, short_window=10, long_window=30):
+    def compute_signal(self, df, short_window=5, long_window=10):
         short_ma = df["close"].rolling(short_window).mean()
         long_ma = df["close"].rolling(long_window).mean()
         if len(df) < long_window:
