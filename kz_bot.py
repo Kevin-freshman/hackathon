@@ -80,9 +80,13 @@ class ExchangeClient:
 
     def get_balance(self):
         try:
-            return self.client.get_balance()
-        except:
-            return {"USD": INITIAL_CASH, symbol.split("/")[0]: 0}
+            data = self.client.get_balance()
+            logger.debug(f"原始余额数据: {data}")
+            # Mock API 返回格式可能是 {"BTC": 1000000, "USD": 1000000}
+            return {k: float(v) for k, v in data.items()}
+        except Exception as e:
+            logger.warning(f"获取余额失败: {e}，使用默认初始资金")
+            return {"USD": INITIAL_CASH, self.symbol.split("/")[0]: 0.0}
 
 # ========== 策略 ==========
 class SmaCross:
@@ -142,8 +146,9 @@ class TradingBot:
             signals = self.strategy.generate_signals(df)
             signal = int(signals.iloc[-1]) if not signals.empty else 0
             balance = self.client.get_balance()
-            usd = balance.get("USD", 0)
-            coin = balance.get(self.symbol.split("/")[0], 0)
+            coin_name = self.symbol.split("/")[0]  # BTC
+            usd = float(balance.get("USD", 0))
+            coin = float(balance.get(coin_name, 0))
             logger.info(f"[{now_ts()}] 价格: {df['close'].iloc[-1]:.2f} | 信号: {signal} | 持仓: {coin} {self.symbol.split('/')[0]} | 现金: {usd} USD")
 
             amount = TRADE_AMOUNT
