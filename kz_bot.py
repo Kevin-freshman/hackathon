@@ -53,11 +53,10 @@ class ExchangeClient:
         dates = pd.date_range(end=datetime.utcnow(), periods=limit, freq='5min')  # 15min K线，更敏感
 
         # 价格曲线：前40根下跌，后60根上涨 → 必有交叉
-        half = limit//3
+        half = 30
         trend = np.concatenate([
-            np.linspace(0, -2000, half),  # 下跌 1500 点
-            np.linspace(-2000, 1000, half),  # 反弹 3500 点
-            np.linspace(-1000, 4000, limit - 2*half)
+            np.linspace(0, -4000, limit-half),  # 下跌 1500 点
+            np.linspace(-4000, 6000, half)
         ])
         noise = np.random.randn(limit) * 200  # 适中波动
         close = 30000 + trend + noise
@@ -186,7 +185,7 @@ class TradingBot:
                     logger.info("卖出成功")
             else:
                 logger.info("无信号")
-            logger.info(f"最近5个信号: {signals.tail(60).tolist()}")
+            logger.info(f"最近60个信号: {signals.tail(60).tolist()}")
             
             
         except Exception:
