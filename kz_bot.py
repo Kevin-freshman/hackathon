@@ -186,9 +186,7 @@ class TradingBot:
             else:
                 logger.info("无信号")
             
-            # 强制刷新日志
-            logger.handlers[0].flush() if logger.handlers else None
-
+            
         except Exception:
             logger.exception("step 出错")
 
@@ -198,9 +196,6 @@ class TradingBot:
             while True:
                 self.step()
                 time.sleep(interval_seconds)
-                for handler in logger._core.handlers.values():
-                    if hasattr(handler, "flush"):
-                        handler.flush()
 
         except KeyboardInterrupt:
             logger.info("停止")
