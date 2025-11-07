@@ -32,7 +32,7 @@ DEFAULT_SYMBOL = os.getenv("DEFAULT_SYMBOL", "BTC/USD")
 DEFAULT_TIMEFRAME = os.getenv("DEFAULT_TIMEFRAME", "1h")
 DEFAULT_SINCE_DAYS = int(os.getenv("DEFAULT_SINCE_DAYS", "90"))
 INITIAL_CASH = float(os.getenv("INITIAL_CASH", "1000000.0"))
-TRADE_AMOUNT = int(float(os.getenv("TRADE_AMOUNT", "10000")))TRADE_AMOUNT
+TRADE_AMOUNT = int(float(os.getenv("TRADE_AMOUNT", "10000")))
 
 logger.add("bot.log", rotation="10 MB", retention="7 days", level="INFO")
 
