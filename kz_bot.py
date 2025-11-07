@@ -185,6 +185,7 @@ class TradingBot:
                     logger.info("卖出成功")
             else:
                 logger.info("无信号")
+            logger.info(f"最近5个信号: {signals.tail(5).tolist()}")
             
             
         except Exception:
