@@ -88,7 +88,7 @@ class ExchangeClient:
             return {"id": f"sim-{int(time.time()*1000)}", "status": "filled"}
         try:
             pair = symbol  # BTC/USD
-            quantity = int(float(amount))  # 强制转为整数
+            quantity = float(amount)
             return self.client.place_order(pair, side, quantity, price)
         except Exception:
             logger.exception("下单失败")
@@ -207,9 +207,13 @@ class TradingBot:
             if signal == 1 and usd_balance > 10:
                 # 买入信号
                 amount = usd_balance / price
-                self.client.place_order(self.symbol, 'buy', amount, price)
+                order = self.client.create_order(self.symbol, 'buy', amount, price)
                 self.entry_price = price
-                logger.info(f"💹 触发【买入】信号 → 价格: {price:.2f} USD | 数量: {amount:.4f} BTC")
+                if order and order.get("status") == "filled":
+                    self.entry_price = price
+                    logger.info(f"买入成功 | 价格: {price:.2f} | 数量: {amount:.6f} BTC")
+                else:
+                    logger.warning(f"买入失败: {order}")
             elif signal == -1 and btc_balance > 0:
                 # 卖出信号
                 self.client.place_order(self.symbol, 'sell', btc_balance, price)
