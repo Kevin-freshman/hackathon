@@ -1,13 +1,7 @@
+# kz_bot.py
 #!/usr/bin/env python3
 """
-kz_bot.py - 全功能量化交易机器人模板
-功能：
- - 读取配置(.env / 环境变量)
- - 拉取历史/实时行情(ccxt / REST)
- - 简单策略(SMA 短/长均线交叉)
- - 回测(backtrader)
- - 模拟/实盘下单(ccxt,支持 dry-run)
- - 日志 (loguru) 与简单调度(schedule)
+kz_bot.py - 全功能量化交易机器人（适配 Roostoo Mock API）
 """
 
 import os
@@ -16,7 +10,6 @@ import argparse
 from datetime import datetime, timedelta
 from typing import Optional
 
-import ccxt
 import pandas as pd
 import numpy as np
 from loguru import logger
@@ -24,75 +17,76 @@ from dotenv import load_dotenv
 import schedule
 import backtrader as bt
 
-# ========== 配置 ==========
+from roostoo_client import RoostooClient
 
+# ========== 配置 ==========
 load_dotenv()
 
 API_KEY = os.getenv("API_KEY", "")
 API_SECRET = os.getenv("API_SECRET", "")
-EXCHANGE_ID = os.getenv("EXCHANGE_ID", "binance")
+EXCHANGE_ID = os.getenv("EXCHANGE_ID", "roostoo")
 DRY_RUN = os.getenv("DRY_RUN", "true").lower() in ("1", "true", "yes")
-BASE_CURRENCY = os.getenv("BASE_CURRENCY", "USDT")
+BASE_CURRENCY = os.getenv("BASE_CURRENCY", "USD")
 
-DEFAULT_SYMBOL = os.getenv("DEFAULT_SYMBOL", "BTC/USDT")
+DEFAULT_SYMBOL = os.getenv("DEFAULT_SYMBOL", "BTC/USD")
 DEFAULT_TIMEFRAME = os.getenv("DEFAULT_TIMEFRAME", "1h")
 DEFAULT_SINCE_DAYS = int(os.getenv("DEFAULT_SINCE_DAYS", "90"))
-INITIAL_CASH = float(os.getenv("INITIAL_CASH", "10000.0"))
+INITIAL_CASH = float(os.getenv("INITIAL_CASH", "1000000.0"))
+TRADE_AMOUNT = float(os.getenv("TRADE_AMOUNT", "10000"))
 
 logger.add("bot.log", rotation="10 MB", retention="7 days", level="INFO")
 
 # ========== 工具函数 ==========
-
 def now_ts() -> str:
     return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
 # ========== 交易所封装 ==========
-
 class ExchangeClient:
-    def __init__(self, exchange_id: str = EXCHANGE_ID, api_key: str = API_KEY, api_secret: str = API_SECRET):
-        exchange_cls = getattr(ccxt, exchange_id)
-        self.exchange = exchange_cls({
-            "apiKey": api_key,
-            "secret": api_secret,
-            "enableRateLimit": True
-        })
-        logger.info(f"[{now_ts()}] 初始化交易所客户端：{exchange_id}, DRY_RUN={DRY_RUN}")
+    def __init__(self):
+        self.client = RoostooClient()
+        logger.info(f"[{now_ts()}] 初始化 Roostoo Mock 客户端, DRY_RUN={DRY_RUN}")
 
-    def fetch_ohlcv(self, symbol, timeframe, since=None, limit=None):
-        raw = self.exchange.fetch_ohlcv(symbol, timeframe=timeframe, since=since, limit=limit)
-        df = pd.DataFrame(raw, columns=["timestamp", "open", "high", "low", "close", "volume"])
+    def fetch_ohlcv(self, symbol, timeframe, since=None, limit=500):
+        # Mock API 无 K 线 → 生成模拟数据
+        logger.info("生成模拟 K 线数据（Mock API 无 OHLCV 接口）")
+        end = datetime.utcnow()
+        start = end - timedelta(days=DEFAULT_SINCE_DAYS)
+        dates = pd.date_range(start, end, periods=limit)
+        np.random.seed(42)
+        close = 30000 + np.cumsum(np.random.randn(limit) * 50)
+        df = pd.DataFrame({
+            'timestamp': [int(t.timestamp() * 1000) for t in dates],
+            'open': close * (1 + np.random.randn(limit) * 0.001),
+            'high': close * (1 + abs(np.random.randn(limit)) * 0.002),
+            'low': close * (1 - abs(np.random.randn(limit)) * 0.002),
+            'close': close,
+            'volume': np.random.randint(100, 1000, limit)
+        })
         df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms")
         df.set_index("datetime", inplace=True)
-        return df
+        return df[["open", "high", "low", "close", "volume"]]
 
     def create_order(self, symbol, side, amount, price=None, order_type="market"):
-        logger.info(f"[{now_ts()}] 下单请求: {side} {amount} {symbol} @ {order_type} {price}")
+        logger.info(f"[{now_ts()}] 下单请求: {side} {amount} {symbol} @ {order_type}")
         if DRY_RUN:
-            logger.info("[DRY_RUN] 模拟下单，不会提交真实订单。")
-            return {
-                "id": f"sim-{int(time.time()*1000)}",
-                "symbol": symbol,
-                "side": side,
-                "amount": amount,
-                "price": price,
-                "status": "simulated",
-                "timestamp": int(time.time()*1000)
-            }
+            logger.info("[DRY_RUN] 模拟下单")
+            return {"id": f"sim-{int(time.time()*1000)}", "status": "filled"}
         try:
-            if order_type == "market":
-                return self.exchange.create_market_order(symbol, side, amount)
-            else:
-                return self.exchange.create_limit_order(symbol, side, amount, price)
+            pair = symbol.replace("/", "/")  # BTC/USD
+            return self.client.place_order(pair, side, amount, price)
         except Exception:
-            logger.exception("下单失败：")
+            logger.exception("下单失败")
             raise
 
-# ========== 策略(SMA交叉) ==========
+    def get_balance(self):
+        try:
+            return self.client.get_balance()
+        except:
+            return {"USD": INITIAL_CASH, symbol.split("/")[0]: 0}
 
+# ========== 策略 ==========
 class SmaCross:
     def __init__(self, short_window=10, long_window=30):
-        if short_window >= long_window:
-            raise ValueError("short_window must be < long_window")
         self.short = short_window
         self.long = long_window
 
@@ -109,10 +103,10 @@ class SmaCross:
 
 # ========== 回测 ==========
 class SmaCrossBT(bt.Strategy):
-    params = dict(short=10, long=30, stake=0.001)
+    params = dict(short=10, long=30, stake=10000)
     def __init__(self):
-        self.sma_short = bt.indicators.SimpleMovingAverage(self.datas[0], period=self.p.short)
-        self.sma_long = bt.indicators.SimpleMovingAverage(self.datas[0], period=self.p.long)
+        self.sma_short = bt.indicators.SMA(self.datas[0], period=self.p.short)
+        self.sma_long = bt.indicators.SMA(self.datas[0], period=self.p.long)
         self.crossover = bt.indicators.CrossOver(self.sma_short, self.sma_long)
     def next(self):
         if not self.position and self.crossover > 0:
@@ -120,7 +114,7 @@ class SmaCrossBT(bt.Strategy):
         elif self.position and self.crossover < 0:
             self.close()
 
-def run_backtest(df, cash=INITIAL_CASH, short=10, long=30, stake=0.001):
+def run_backtest(df, cash=INITIAL_CASH, short=10, long=30, stake=10000):
     cerebro = bt.Cerebro()
     cerebro.broker.setcash(cash)
     data = bt.feeds.PandasData(dataname=df)
@@ -130,61 +124,54 @@ def run_backtest(df, cash=INITIAL_CASH, short=10, long=30, stake=0.001):
     logger.info(f"[{now_ts()}] 回测开始: 初始资金 {start_val}")
     cerebro.run()
     end_val = cerebro.broker.getvalue()
-    logger.info(f"[{now_ts()}] 回测结束: 最终资金 {end_val}, 收益 {end_val - start_val}")
+    logger.info(f"[{now_ts()}] 回测结束: 最终资金 {end_val}, 收益 {end_val - start_val:.2f}")
     return cerebro
 
-# ========== 交易主循环 ==========
-
+# ========== 主循环 ==========
 class TradingBot:
-    def __init__(self, client, symbol=DEFAULT_SYMBOL, timeframe=DEFAULT_TIMEFRAME, strategy=None):
+    def __init__(self, client, symbol=DEFAULT_SYMBOL, strategy=None):
         self.client = client
         self.symbol = symbol
-        self.timeframe = timeframe
         self.strategy = strategy or SmaCross()
         self.position = 0.0
-        logger.info(f"[{now_ts()}] TradingBot 初始化: {symbol}")
-
-    def fetch_recent(self, since_minutes=1000):
-        since_dt = datetime.utcnow() - timedelta(minutes=since_minutes)
-        since = int(since_dt.timestamp() * 1000)
-        return self.client.fetch_ohlcv(self.symbol, self.timeframe, since=since)
+        logger.info(f"[{now_ts()}] Bot 初始化: {symbol}")
 
     def step(self):
         try:
-            df = self.fetch_recent(60 * 24)
+            df = self.client.fetch_ohlcv(self.symbol, DEFAULT_TIMEFRAME, limit=100)
             signals = self.strategy.generate_signals(df)
-            signal = int(signals.dropna().iloc[-1])
-            last_close = float(df["close"].iloc[-1])
-            logger.info(f"[{now_ts()}] 最新价 {last_close} 信号 {signal}")
+            signal = int(signals.iloc[-1]) if not signals.empty else 0
+            balance = self.client.get_balance()
+            usd = balance.get("USD", 0)
+            coin = balance.get(self.symbol.split("/")[0], 0)
+            logger.info(f"[{now_ts()}] 价格: {df['close'].iloc[-1]:.2f} | 信号: {signal} | 持仓: {coin} {self.symbol.split('/')[0]} | 现金: {usd} USD")
 
-            if signal == 1 and self.position == 0:
-                amount = float(os.getenv("TRADE_AMOUNT", "0.001"))
+            amount = TRADE_AMOUNT
+            if signal == 1 and usd > amount:
                 order = self.client.create_order(self.symbol, "buy", amount)
                 if order:
                     self.position += amount
                     logger.info("买入成功")
-            elif signal == -1 and self.position > 0:
-                amount = self.position
-                order = self.client.create_order(self.symbol, "sell", amount)
+            elif signal == -1 and coin > 0.001:
+                order = self.client.create_order(self.symbol, "sell", coin)
                 if order:
-                    self.position = 0.0
+                    self.position = 0
                     logger.info("卖出成功")
             else:
-                logger.info("无交易动作")
+                logger.info("无信号")
         except Exception:
-            logger.exception("step 执行出错：")
+            logger.exception("step 出错")
 
     def run_loop(self, interval_seconds=60):
-        logger.info(f"[{now_ts()}] 开始运行循环，每 {interval_seconds}s 执行一次，DRY_RUN={DRY_RUN}")
+        logger.info(f"[{now_ts()}] 启动循环，每 {interval_seconds}s 执行一次")
         try:
             while True:
                 self.step()
                 time.sleep(interval_seconds)
         except KeyboardInterrupt:
-            logger.info("循环停止")
+            logger.info("停止")
 
-# ========== 主程序入口 ==========
-
+# ========== 主程序 ==========
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--mode", choices=["backtest", "live", "paper", "fetch"], default="backtest")
@@ -197,33 +184,25 @@ def parse_args():
     return p.parse_args()
 
 def main():
-    global DRY_RUN  # ✅ 移到函数最顶部
+    global DRY_RUN
     args = parse_args()
     client = ExchangeClient()
 
     if args.mode == "fetch":
-        since_dt = datetime.utcnow() - timedelta(days=args.since_days)
-        since = int(since_dt.timestamp() * 1000)
-        df = client.fetch_ohlcv(args.symbol, args.timeframe, since=since)
+        df = client.fetch_ohlcv(args.symbol, args.timeframe)
         print(df.tail())
         return
 
     if args.mode == "backtest":
-        since_dt = datetime.utcnow() - timedelta(days=args.since_days)
-        since = int(since_dt.timestamp() * 1000)
-        df = client.fetch_ohlcv(args.symbol, args.timeframe, since=since)
-        run_backtest(df, cash=INITIAL_CASH, short=args.short, long=args.long)
+        df = client.fetch_ohlcv(args.symbol, args.timeframe)
+        run_backtest(df, cash=INITIAL_CASH, short=args.short, long=args.long, stake=TRADE_AMOUNT)
         return
 
-    bot = TradingBot(client, symbol=args.symbol, timeframe=args.timeframe, strategy=SmaCross(args.short, args.long))
+    bot = TradingBot(client, symbol=args.symbol, strategy=SmaCross(args.short, args.long))
 
-    if args.mode == "live":
-        if DRY_RUN:
-            logger.warning("当前为 DRY_RUN 模式，未进行真实下单")
-        bot.run_loop(interval_seconds=args.interval)
-    elif args.mode == "paper":
-        DRY_RUN = True  # ✅ 不再触发语法错误
-        logger.info("进入 PAPER 模式(强制模拟下单)")
+    if args.mode in ["live", "paper"]:
+        if args.mode == "paper":
+            DRY_RUN = True
         bot.run_loop(interval_seconds=args.interval)
 
 if __name__ == "__main__":
