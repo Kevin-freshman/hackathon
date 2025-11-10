@@ -1,103 +1,73 @@
-import requests
-import hashlib
-import hmac
 import time
-from loguru import logger
-from dotenv import load_dotenv
-import os
+import hmac
+import hashlib
+import requests
+import logging
 
-load_dotenv()
+logger = logging.getLogger(__name__)
 
-BASE_URL = "https://mock-api.roostoo.com"
+class ExchangeClient:
+    def __init__(self, api_key, api_secret, base_url="https://api.roostoo.com"):
+        self.api_key = api_key
+        self.api_secret = api_secret
+        self.base_url = base_url.rstrip("/")
 
-API_KEY = os.getenv("ROOSTOO_API_KEY")
-API_SECRET = os.getenv("ROOSTOO_API_SECRET")
+    def _sign_and_request(self, method, path, params=None):
+        """
+        Roostoo API 核心请求方法
+        """
+        if params is None:
+            params = {}
 
+        timestamp = str(int(time.time() * 1000))
+        body = ""
+        if method == "GET":
+            query_str = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
+            payload = f"{timestamp}{method}{path}{query_str}"
+        else:
+            body = json.dumps(params)
+            payload = f"{timestamp}{method}{path}{body}"
 
-def now_ts():
-    return int(time.time() * 1000)
-
-
-class RoostooClient:
-    def __init__(self):
-        if not API_KEY or not API_SECRET:
-            raise ValueError("⚠️ 请先在 .env 文件中设置 ROOSTOO_API_KEY 和 ROOSTOO_API_SECRET")
-        self.api_key = API_KEY
-        self.api_secret = API_SECRET
-        self.session = requests.Session()
-        self.session.headers.update({"RST-API-KEY": self.api_key})
-        
-
-    # ✅ 正确签名函数
-    def sign(self, params: dict = None):
-        params = params or {}
-        query = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
-        return hmac.new(self.api_secret.encode(), query.encode(), hashlib.sha256).hexdigest()
-
-    # ✅ 核心请求函数
-    def _sign_and_request(self, method, endpoint, params=None, data=None):
-        params = params or {}
-        data = data or {}
-        all_params = {**params, **data, "timestamp": now_ts()}
-        signature = self.sign(all_params)
+        # 计算签名
+        signature = hmac.new(
+            self.api_secret.encode("utf-8"),
+            payload.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
 
         headers = {
-            "RST-API-KEY": self.api_key,
-            "MSG-SIGNATURE": signature,
+            "X-ROOSTOO-APIKEY": self.api_key,
+            "X-ROOSTOO-TIMESTAMP": timestamp,
+            "X-ROOSTOO-SIGNATURE": signature,
+            "Content-Type": "application/json"
         }
 
-        url = BASE_URL + endpoint
-        try:
-            if method == "GET":
-                response = self.session.get(url, params=all_params, headers=headers)
-            else:
-                response = self.session.post(url, data=all_params, headers=headers)
+        url = self.base_url + path
+        logger.debug(f"[Roostoo] {method} {url} | params={params}")
 
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            logger.error(f"API 请求失败: {endpoint} | {response.text if 'response' in locals() else str(e)}")
-            raise
+        if method == "GET":
+            resp = requests.get(url, headers=headers, params=params)
+        elif method == "POST":
+            resp = requests.post(url, headers=headers, json=params)
+        else:
+            raise ValueError(f"Unsupported HTTP method: {method}")
+
+        try:
+            data = resp.json()
+        except Exception:
+            logger.error(f"Roostoo 返回非 JSON: {resp.text}")
+            data = {"Success": False, "ErrMsg": resp.text}
+
+        return data
+
+    def get_balance(self):
+        res = self._sign_and_request("GET", "/v3/balance")
+        if not res.get("Success"):
+            logger.warning(f"get_balance 失败: {res.get('ErrMsg')}")
+            return {}
+        wallet = res.get("SpotWallet", {})
+        flat = {asset: info["Free"] for asset, info in wallet.items()}
+        return flat
 
     def faucet(self):
         return self._sign_and_request("POST", "/v3/faucet")
-
-    # 🧩 各种接口封装
-    def get_server_time(self):
-        return self._sign_and_request("GET", "/v3/serverTime")
-
-    def get_exchange_info(self):
-        return self._sign_and_request("GET", "/v3/exchangeInfo")
-
-    def get_balance(self):
-        return self._sign_and_request("GET", "/v3/balance")
-
-    def place_order(self, pair, side, quantity, price=None):
-        payload = {
-            "pair": pair,
-            "side": side.upper(),
-            "quantity": float(quantity),
-            "type": "MARKET" if price is None else "LIMIT",
-        }
-        if price is not None:
-            payload["price"] = float(price)
-        return self._sign_and_request("POST", "/v3/place_order", data=payload)
-
-    def cancel_order(self, pair, order_id=None):
-        payload = {"pair": pair}
-        if order_id:
-            payload["order_id"] = order_id
-        return self._sign_and_request("POST", "/v3/cancel_order", data=payload)
-
-    def query_order(self, pair=None, order_id=None, pending_only=None):
-        payload = {}
-        if pair:
-            payload["pair"] = pair
-        if order_id:
-            payload["order_id"] = order_id
-        if pending_only is not None:
-            payload["pending_only"] = pending_only
-        return self._sign_and_request("POST", "/v3/query_order", data=payload)
-
-    def pending_count(self):
-        return self._sign_and_request("GET", "/v3/pending_count")
