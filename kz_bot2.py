@@ -5,6 +5,8 @@
 策略：涨幅 × $10,000 = 目标仓位
 自动卖弱买强 + 银行级风控 + 真实 Horus 数据
 """
+from dotenv import load_dotenv
+load_dotenv()
 
 import os
 import time
@@ -19,6 +21,7 @@ from horus_client import HorusClient
 
 # ==================== 配置 ====================
 INITIAL_CASH = 1_000_000
+
 DRY_RUN = False
 SYMBOLS = [
     "BTC/USD", "ETH/USD", "XRP/USD", "BNB/USD", "SOL/USD", "DOGE/USD",
