@@ -6,8 +6,8 @@ import time
 from loguru import logger
 
 BASE_URL = "https://mock-api.roostoo.com"
-API_KEY = "saGDCHXzD4Qbjpn8Kvz33u2oCWkniVJ4ingkATaj6WC5cOWNuY4Faae8BBa1szIv"
-SECRET = "Uuqvg6XWGmO4IJgKVm3h2XUGhllCA3Mb6nOj5HK80z0HMRpWOHWWGB5CWGqCEjxJ"
+API_KEY = "s2L7kP8bN4oV1wT5gC0lY3mH6qJ9rA7fT2uD5pI8nS3xW0zK1eB4jX9vM0yU6t"
+SECRET = "H2kN7pQ1wE5rT9yUiO3aS8dF0gJ4hKlZ6xC2vBnM5qW7eRtY1uI9oPaS3dF6gJ0h"
 
 def now_ts():
     return int(time.time() * 1000)
