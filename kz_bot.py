@@ -17,6 +17,8 @@ from dotenv import load_dotenv
 import schedule
 import backtrader as bt
 
+
+from horus_client import HorusClient
 from roostoo_client import RoostooClient
 
 # ========== 配置 ==========
@@ -41,6 +43,8 @@ def now_ts() -> str:
     return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
 # ========== 交易所封装 ==========
+'''
+
 class ExchangeClient:
     def __init__(self):
         self.client = RoostooClient()
@@ -111,6 +115,50 @@ class ExchangeClient:
         except Exception as e:
             logger.warning(f"获取余额失败: {e}, 使用默认值")
             return {"USD": INITIAL_CASH}
+'''
+
+# kz_bot.py (关键修改)
+from horus_client import HorusClient  # 新增导入
+
+class ExchangeClient:
+    def __init__(self):
+        self.roostoo = RoostooClient()  # 原有
+        self.horus = HorusClient()  # 新增 Horus
+        logger.info(f"[{now_ts()}] 初始化 Horus + Roostoo 客户端, DRY_RUN={DRY_RUN}")
+
+    def fetch_ohlcv(self, symbol, timeframe, since=None, limit=100):
+        """用 Horus 获取真实价格历史，构造 K 线"""
+        try:
+            # Horus 获取价格数据
+            price_data = self.horus.get_market_price(pair=symbol.replace("/", ""), limit=limit)
+            # 假设 Horus 返回 [{'timestamp': 1731240000000, 'open': 30000, 'high': 30500, 'low': 29500, 'close': 30200, 'volume': 1000}, ...]
+            # 如果格式不同，调整解析
+            df = pd.DataFrame(price_data)
+            df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df.set_index('datetime', inplace=True)
+            logger.info(f"Horus K 线加载成功: {len(df)} 根")
+            return df[['open', 'high', 'low', 'close', 'volume']]
+        except Exception as e:
+            logger.warning(f"Horus 失败，使用模拟: {e}")
+            # Fallback 到模拟（你的原代码）
+            # ... (保持原模拟逻辑)
+
+    def get_defi_signal(self, symbol):
+        """用 Horus TVL 生成额外信号 (1: 买入, -1: 卖出, 0: 持平)"""
+        try:
+            tvl_data = self.horus.get_defi_tvl(limit=10)  # 最近 10 个
+            recent_tvl = tvl_data[-1]['tvl']
+            prev_tvl = tvl_data[-2]['tvl'] if len(tvl_data) > 1 else recent_tvl
+            growth = (recent_tvl - prev_tvl) / prev_tvl if prev_tvl > 0 else 0
+            if growth > 0.05:  # TVL 增长 >5%
+                return 1
+            elif growth < -0.05:
+                return -1
+            return 0
+        except:
+            return 0
+
+# 在 TradingBot.step() 中集成
 
 # ========== 策略 ==========
 class SmaCross:
@@ -171,7 +219,10 @@ class TradingBot:
     def step(self):
         try:
             df = self.client.fetch_ohlcv(self.symbol, DEFAULT_TIMEFRAME, limit=200)
-            close = df['close']
+            sma_signal = int(self.strategy.generate_signals(df).iloc[-1])
+            defi_signal = self.client.get_defi_signal(self.symbol)
+            signal = sma_signal + defi_signal  # 组合 (e.g., 2: 强买入)
+            signal = 1 if signal > 0 else -1 if signal < 0 else 0
 
             # 计算短期、长期均线
             short_window = 20
