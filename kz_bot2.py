@@ -115,6 +115,10 @@ class DynamicMomentumBot:
             total_value = usd + sum(positions.values())
             logger.info(f"总资产: ${total_value:,.0f} | 现金: ${usd:,.0f}")
 
+            if self.risk.peak == INITIAL_CASH and total_value < INITIAL_CASH:
+                logger.info(f"初始化峰值校准为 ${total_value:,.0f}")
+                self.risk.peak = total_value
+
             # 3. 风控检查
             if not self.risk.check(total_value, positions):
                 logger.info("风控暂停交易，观望中...")
