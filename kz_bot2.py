@@ -67,47 +67,80 @@ class RiskManager:
         return True
 
 # ==================== 客户端 ====================
+import time
+import hmac
+import hashlib
+import requests
+import logging
+
+logger = logging.getLogger(__name__)
+
 class ExchangeClient:
-    def __init__(self):
-        self.roostoo = RoostooClient()
-        self.horus = HorusClient()
-        logger.info(f"[{self.ts()}] 客户端就绪 | DRY_RUN={DRY_RUN}")
+    def __init__(self, api_key, api_secret, base_url="https://api.roostoo.com"):
+        self.api_key = api_key
+        self.api_secret = api_secret
+        self.base_url = base_url.rstrip("/")
 
-    def ts(self): return datetime.utcnow().strftime("%m-%d %H:%M:%S")
+    def _sign_and_request(self, method, path, params=None):
+        """
+        Roostoo API 核心请求方法
+        """
+        if params is None:
+            params = {}
 
-    def fetch_price(self, symbol: str) -> float:
-        """获取最新价格（优先 Horus，其次模拟价）"""
+        timestamp = str(int(time.time() * 1000))
+        body = ""
+        if method == "GET":
+            query_str = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
+            payload = f"{timestamp}{method}{path}{query_str}"
+        else:
+            body = json.dumps(params)
+            payload = f"{timestamp}{method}{path}{body}"
+
+        # 计算签名
+        signature = hmac.new(
+            self.api_secret.encode("utf-8"),
+            payload.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+
+        headers = {
+            "X-ROOSTOO-APIKEY": self.api_key,
+            "X-ROOSTOO-TIMESTAMP": timestamp,
+            "X-ROOSTOO-SIGNATURE": signature,
+            "Content-Type": "application/json"
+        }
+
+        url = self.base_url + path
+        logger.debug(f"[Roostoo] {method} {url} | params={params}")
+
+        if method == "GET":
+            resp = requests.get(url, headers=headers, params=params)
+        elif method == "POST":
+            resp = requests.post(url, headers=headers, json=params)
+        else:
+            raise ValueError(f"Unsupported HTTP method: {method}")
+
         try:
-            # ✅ symbol 如 "BTC/USD"，提取 "BTC"
-            asset = symbol.split("/")[0]
-            price = self.horus.get_latest_price(asset)
-            logger.info(f"{asset}/USD 最新价: {price}")
-            return price
-        except Exception as e:
-            logger.warning(f"{symbol} Horus 获取失败: {e}，使用模拟价")
-            return self.horus._mock_price(symbol.split("/")[0])
+            data = resp.json()
+        except Exception:
+            logger.error(f"Roostoo 返回非 JSON: {resp.text}")
+            data = {"Success": False, "ErrMsg": resp.text}
+
+        return data
 
     def get_balance(self):
         res = self._sign_and_request("GET", "/v3/balance")
-        logger.info(f"[Roostoo] get_balance raw response: {res}")
         if not res.get("Success"):
-            logger.warning(f"Roostoo get_balance failed: {res.get('ErrMsg')}")
+            logger.warning(f"get_balance 失败: {res.get('ErrMsg')}")
             return {}
         wallet = res.get("SpotWallet", {})
-        # 展平成 { "USD": 50000, ... }
         flat = {asset: info["Free"] for asset, info in wallet.items()}
         return flat
 
+    def faucet(self):
+        return self._sign_and_request("POST", "/v3/faucet")
 
-    def place_order(self, symbol: str, side: str, amount: float):
-        if amount == 0: return
-        if DRY_RUN:
-            logger.info(f"[DRY] 模拟 {side} {abs(amount):.6f} {symbol}")
-            return {"status": "filled"}
-        try:
-            return self.roostoo.place_order(symbol, side, abs(amount))
-        except Exception as e:
-            logger.error(f"下单失败 {symbol}: {e}")
 
 # ==================== 核心策略 ====================
 class DynamicMomentumBot:
