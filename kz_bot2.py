@@ -5,11 +5,12 @@
 策略：涨幅 × $10,000 = 目标仓位
 自动卖弱买强 + 银行级风控 + 真实 Horus 数据
 """
+
+import os
 from dotenv import load_dotenv
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
-import os
 import time
 import argparse
 from datetime import datetime
