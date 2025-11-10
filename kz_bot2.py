@@ -87,10 +87,17 @@ class ExchangeClient:
             logger.warning(f"{symbol} Horus 获取失败: {e}，使用模拟价")
             return self.horus._mock_price(symbol.split("/")[0])
 
-    def get_balance(self) -> Dict[str, float]:
-        if DRY_RUN:
-            return {"USD": 500_000, "BTC": 2.0, "ETH": 15.0, "SOL": 200.0}
-        return self.roostoo.get_balance()
+    def get_balance(self):
+        res = self._sign_and_request("GET", "/v3/balance")
+        logger.info(f"[Roostoo] get_balance raw response: {res}")
+        if not res.get("Success"):
+            logger.warning(f"Roostoo get_balance failed: {res.get('ErrMsg')}")
+            return {}
+        wallet = res.get("SpotWallet", {})
+        # 展平成 { "USD": 50000, ... }
+        flat = {asset: info["Free"] for asset, info in wallet.items()}
+        return flat
+
 
     def place_order(self, symbol: str, side: str, amount: float):
         if amount == 0: return
@@ -177,10 +184,4 @@ class DynamicMomentumBot:
 if __name__ == "__main__":
     client = ExchangeClient()
     bot = DynamicMomentumBot(client)
-
-    try:
-        bot.client.faucet()
-        logger.info("✅ 已领取测试资金")
-    except Exception as e:
-        logger.warning(f"❌ 领取资金失败: {e}")
     bot.run()
