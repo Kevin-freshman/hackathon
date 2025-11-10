@@ -22,7 +22,7 @@ INITIAL_CASH = 1_000_000
 DRY_RUN = os.getenv("DRY_RUN", "true").lower() == "true"
 SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD"]
 BASE_PER_PERCENT = 10_000  # 每涨 1% 分配 $10,000
-INTERVAL = 900  # 15 分钟调仓一次
+INTERVAL = 10  # 15 分钟调仓一次
 
 logger.add("champion_bot.log", rotation="10 MB", level="INFO", enqueue=True)
 
