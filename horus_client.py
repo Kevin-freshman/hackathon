@@ -20,6 +20,11 @@ class HorusClient:
         })
 
     def _request(self, endpoint, params=None):
+
+        if os.getenv("FORCE_HORUS_422", "").lower() in ("1", "true", "yes"):
+            logger.warning("FORCE_HORUS_422 enabled — forcing a 422 error for testing")
+            # 人为抛出一个 HTTPError，和你日志里看到的格式一致
+            raise requests.HTTPError("422 Client Error: Unprocessable Entity for url")
         """统一请求入口"""
         url = HORUS_BASE_URL + endpoint
         try:
