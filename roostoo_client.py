@@ -26,6 +26,8 @@ class RoostooClient:
         self.api_secret = API_SECRET
         self.session = requests.Session()
         self.session.headers.update({"RST-API-KEY": self.api_key})
+        self.base_url = BASE_URL.rstrip("/")
+        
 
     # ✅ 正确签名函数
     def sign(self, params: dict = None):
@@ -65,28 +67,9 @@ class RoostooClient:
     def get_exchange_info(self):
         return self._sign_and_request("GET", "/v3/exchangeInfo")
 
-    def get_balance(self) -> dict:
-        """获取账户余额，包括可用和冻结金额"""
-        try:
-            resp = self._sign_and_request("GET", "/v3/balance")
-            if resp and resp.get("Success"):
-                wallet = resp.get("Wallet", {})
-                balances = {}
-                for coin, info in wallet.items():
-                    balances[coin] = {
-                        "free": float(info.get("Free", 0)),
-                        "locked": float(info.get("Lock", 0))
-                    }
-                return balances
-            else:
-                logger.error(f"获取余额失败: {resp.get('ErrMsg') if resp else '无响应'}")
-                return {}
-        except Exception as e:
-            logger.error(f"获取余额异常: {e}")
-            return {}
+    def get_balance(self):
+        return self._sign_and_request("GET", "/v3/balance")
 
-        
-        
     def place_order(self, pair, side, quantity, price=None):
         payload = {
             "pair": pair,
