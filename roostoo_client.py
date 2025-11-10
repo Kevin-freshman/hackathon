@@ -6,8 +6,9 @@ import time
 from loguru import logger
 
 BASE_URL = "https://mock-api.roostoo.com"
-API_KEY = "s2L7kP8bN4oV1wT5gC0lY3mH6qJ9rA7fT2uD5pI8nS3xW0zK1eB4jX9vM0yU6t"
-SECRET = "H2kN7pQ1wE5rT9yUiO3aS8dF0gJ4hKlZ6xC2vBnM5qW7eRtY1uI9oPaS3dF6gJ0h"
+
+API_KEY = os.getenv("ROOSTOO_API_KEY")
+API_SECRET = os.getenv("ROOSTOO_API_SECRET")
 
 def now_ts():
     return int(time.time() * 1000)
@@ -46,7 +47,20 @@ class RoostooClient:
     def get_exchange_info(self):
         return self._sign_and_request("GET", "/v3/exchangeInfo")
 
+    def sign(params: dict):
+        query = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
+        return hmac.new(SECRET.encode(), query.encode(), hashlib.sha256).hexdigest()
+
+
     def get_balance(self):
+        ts = str(int(time.time() * 1000))
+        params = {"timestamp": ts}
+        headers = {
+            "RST-API-KEY": API_KEY,
+            "MSG-SIGNATURE": sign(params),
+        }
+        r = requests.get("https://api.roostoo.com/v3/balance", params=params, headers=headers)
+        return r.json()
         return self._sign_and_request("GET", "/v3/balance")
 
     def place_order(self, pair, side, quantity, price=None):
