@@ -67,7 +67,7 @@ class ExchangeClient:
     def fetch_price(self, symbol: str) -> float:
         """用 Horus 获取最新价格"""
         try:
-            data = self.horus.get_market_price(pair=symbol.replace("/", ""), limit=1)
+            data = self.horus.get_market_price(pair=symbol, limit=2)
             return float(data[0]["close"])
         except:
             logger.warning(f"{symbol} Horus 失败，用模拟价")
@@ -151,7 +151,6 @@ class DynamicMomentumBot:
             logger.error(f"step 错误: {e}", exc_info=True)
 
     def run(self):
-        logger.info("冠军动量 bot 启动！每15分钟追涨杀跌")
         while True:
             self.step()
             time.sleep(INTERVAL)
