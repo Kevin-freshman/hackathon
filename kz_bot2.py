@@ -20,7 +20,18 @@ from horus_client import HorusClient
 # ==================== 配置 ====================
 INITIAL_CASH = 1_000_000
 DRY_RUN = os.getenv("DRY_RUN", "true").lower() == "true"
-SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD"]
+SYMBOLS = [
+    "BTC/USD", "ETH/USD", "XRP/USD", "BNB/USD", "SOL/USD", "DOGE/USD",
+    "TRX/USD", "ADA/USD", "XLM/USD", "WBTC/USD", "SUI/USD", "HBAR/USD",
+    "LINK/USD", "BCH/USD", "WBETH/USD", "UNI/USD", "AVAX/USD", "SHIB/USD",
+    "TON/USD", "LTC/USD", "DOT/USD", "PEPE/USD", "AAVE/USD", "ONDO/USD",
+    "TAO/USD", "WLD/USD", "APT/USD", "NEAR/USD", "ARB/USD", "ICP/USD",
+    "ETC/USD", "FIL/USD", "TRUMP/USD", "OP/USD", "ALGO/USD", "POL/USD",
+    "BONK/USD", "ENA/USD", "ENS/USD", "VET/USD", "SEI/USD", "RENDER/USD",
+    "FET/USD", "ATOM/USD", "VIRTUAL/USD", "SKY/USD", "BNSOL/USD", "RAY/USD",
+    "TIA/USD", "JTO/USD", "JUP/USD", "QNT/USD", "FORM/USD", "INJ/USD",
+    "STX/USD"
+]
 BASE_PER_PERCENT = 10_000  # 每涨 1% 分配 $10,000
 INTERVAL = 10  # 15 分钟调仓一次
 
