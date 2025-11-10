@@ -60,9 +60,6 @@ class RoostooClient:
             logger.error(f"API 请求失败: {endpoint} | {response.text if 'response' in locals() else str(e)}")
             raise
 
-    def faucet(self):
-        return self._sign_and_request("POST", "/v3/faucet")
-
     # 🧩 各种接口封装
     def get_server_time(self):
         return self._sign_and_request("GET", "/v3/serverTime")
