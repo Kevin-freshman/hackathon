@@ -6,7 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class ExchangeClient:
+class RoostooClient:
     def __init__(self, api_key, api_secret, base_url="https://api.roostoo.com"):
         self.api_key = api_key
         self.api_secret = api_secret
