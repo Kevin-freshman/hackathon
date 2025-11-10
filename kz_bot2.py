@@ -19,7 +19,7 @@ from horus_client import HorusClient
 
 # ==================== 配置 ====================
 INITIAL_CASH = 1_000_000
-DRY_RUN = os.getenv("DRY_RUN", "true").lower() == "true"
+DRY_RUN = os.getenv("DRY_RUN", "false").lower() == "true"
 SYMBOLS = [
     "BTC/USD", "ETH/USD", "XRP/USD", "BNB/USD", "SOL/USD", "DOGE/USD",
     "TRX/USD", "ADA/USD", "XLM/USD", "WBTC/USD", "SUI/USD", "HBAR/USD",
