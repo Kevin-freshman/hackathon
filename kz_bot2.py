@@ -158,7 +158,7 @@ class ExchangeClient:
         flat = {asset: info["Free"] for asset, info in wallet.items()}
         return flat
 
-'''
+
     def place_order(self, symbol: str, side: str, amount: float):
         if amount == 0: return
         if DRY_RUN:
@@ -168,7 +168,7 @@ class ExchangeClient:
             return self.roostoo.place_order(symbol, side, abs(amount))
         except Exception as e:
             logger.error(f"下单失败 {symbol}: {e}")
-
+'''
 # ==================== 核心策略 ====================
 class DynamicMomentumBot:
     def __init__(self, client):
