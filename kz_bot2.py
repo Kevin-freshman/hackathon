@@ -114,7 +114,6 @@ class DynamicMomentumBot:
     def __init__(self, client):
         self.client = client
         self.risk = RiskManager()
-        self.horus = HorusClient()
 
     def step(self):
         try:
@@ -166,11 +165,12 @@ class DynamicMomentumBot:
                 try:
                     asset = sym.split("/")[0]
                     # 使用正确的方法和参数
-                    data = self.horus.get_market_price(
+                    data = self.client.horus.get_market_price(
                         asset=asset, 
                         # interval="15m",  # 使用15分钟间隔
                         # 计算合适的时间范围来获取最近2个数据点
-                        start=int(time.time()) - (30 * 60)  # 最近30分钟
+                        interval="15m",
+                        limit = 2
                     )
                     
                     logger.info(f"{asset} 获取到 {len(data)} 条数据")
