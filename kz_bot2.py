@@ -114,6 +114,7 @@ class DynamicMomentumBot:
     def __init__(self, client):
         self.client = client
         self.risk = RiskManager()
+        self.horus = HorusClient()
 
     def step(self):
         try:
@@ -146,7 +147,7 @@ class DynamicMomentumBot:
             momentum_targets = {}  # {sym: target_usd}
             for sym in SYMBOLS:
                 try:
-                    data = self.client.horus.get_market_price(
+                    data = self.horus.get_market_price(
                         pair=sym.replace("/", ""), limit=2
                     )
                     logger.info(f"data数据为{data}")
