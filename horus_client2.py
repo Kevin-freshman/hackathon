@@ -61,7 +61,7 @@ class HorusClient:
         if limit is not None:
             params["limit"] = limit
 
-        return self._request("/market/price/end", params)
+        return self._request("/market/price", params)
 
     def get_latest_price(self, asset="BTC"):
         """
