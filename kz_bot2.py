@@ -178,7 +178,7 @@ class DynamicMomentumBot:
                         # 取最后两条数据
                         recent_data = data[-2:]
                         ret = (recent_data[1]["price"] / recent_data[0]["price"]) - 1
-                        target_usd = ret * BASE_PER_PERCENT * 100
+                        target_usd = ret * BASE_PER_PERCENT
                         momentum_targets[sym] = max(target_usd, -usd * 0.5)
                         logger.info(f"{asset} 收益率: {ret:.4%}, 目标仓位: ${target_usd:,.0f}")
                     else:
@@ -199,6 +199,28 @@ class DynamicMomentumBot:
                 # 限制单资产暴露
                 if current_usd + diff_usd > total_value * 0.35:
                     diff_usd = total_value * 0.35 - current_usd
+
+                # 现金保护：买入不超过可用现金（留一点缓冲，例如 0.5%）
+                if diff_usd > 0:
+                    max_buyable = usd * 0.995  # 留 0.5% buffer 防止全部耗尽
+                    if diff_usd > max_buyable:
+                        diff_usd = max_buyable
+
+                # 卖出保护：不卖超过当前持仓（避免造成负持仓）
+                if diff_usd < 0:
+                    # positions[sym] = amount * price
+                    current_amount = 0.0
+                    asset = sym.split("/")[0]
+                    # 从 balance 里取当前持仓数量（确保类型为 float）
+                    current_amount = float(balance.get(asset, 0) or 0)
+                    amount = diff_usd / prices[sym]
+                    # 如果要卖的数量绝对值超过手上持有数量，则限制为持仓
+                    if abs(amount) > current_amount:
+                        amount = -current_amount
+                else:
+                    amount = diff_usd / prices[sym]
+
+
 
                 if abs(diff_usd) > 500:  # 最小交易额
                     amount = diff_usd / prices[sym]
