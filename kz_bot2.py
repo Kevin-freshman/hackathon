@@ -18,7 +18,7 @@ from roostoo_client import RoostooClient
 from horus_client2 import HorusClient
 
 # ==================== 配置 ====================
-INITIAL_CASH = 1_000_000
+INITIAL_CASH = 50_000
 DRY_RUN = False
 SYMBOLS = [
     "BTC/USD", "ETH/USD", "XRP/USD", "BNB/USD", "SOL/USD", "DOGE/USD",
@@ -32,7 +32,7 @@ SYMBOLS = [
     "TIA/USD", "JTO/USD", "JUP/USD", "QNT/USD", "FORM/USD", "INJ/USD",
     "STX/USD"
 ]
-BASE_PER_PERCENT = 10_000  # 每涨 1% 分配 $10,000
+BASE_PER_PERCENT = 1000  # 每涨 1% 分配 $10,000
 INTERVAL = 900  # 15 分钟调仓一次
 
 logger.add("champion_bot.log", rotation="10 MB", level="INFO", enqueue=True)
@@ -167,7 +167,7 @@ class DynamicMomentumBot:
                     # 使用正确的方法和参数
                     data = self.client.horus.get_market_price(
                         asset=asset, 
-                        # interval="15m",  # 使用15分钟间隔
+                        interval="15m",  # 使用15分钟间隔
                         # 计算合适的时间范围来获取最近2个数据点
                         interval="15m",
                         limit = 2
