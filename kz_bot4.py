@@ -109,6 +109,21 @@ class ExchangeClient:
         except Exception as e:
             logger.error(f"下单失败 {symbol}: {e}")
 
+    def manual_buy_1usd_btc(self):
+        """手动买入价值1 USD的比特币"""
+        symbol = "BTC/USD"
+        usd_amount = 1.0
+        try:
+            price = self.fetch_price(symbol)
+            if price <= 0:
+                raise ValueError("无效的价格")
+            amount = usd_amount / price
+            logger.info(f"计算得到买入数量: {amount:.8f} BTC (价值约 ${usd_amount})")
+            self.place_order(symbol, "buy", amount)
+            logger.info(f"手动买入 {amount:.8f} BTC 完成")
+        except Exception as e:
+            logger.error(f"手动买入失败: {e}")
+
 # ==================== 核心策略 ====================
 class DynamicMomentumBot:
     def __init__(self, client):
