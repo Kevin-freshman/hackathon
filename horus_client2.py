@@ -39,7 +39,7 @@ class HorusClient:
             logger.error(f"Horus API error: {e}")
             raise
 
-    def get_market_price(self, asset="BTC", interval="1d", start=None, end=None, fmt="json"):
+    def get_market_price(self, asset="BTC", interval="1d", start=None, end=None, fmt="json", limit=None):
         """
         获取历史价格
         文档参数：
@@ -58,6 +58,8 @@ class HorusClient:
             params["start"] = start
         if end:
             params["end"] = end
+        if limit is not None:
+            params["limit"] = limit
 
         return self._request("/market/price", params)
 
