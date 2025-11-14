@@ -264,4 +264,5 @@ class DynamicMomentumBot:
 if __name__ == "__main__":
     client = ExchangeClient()
     bot = DynamicMomentumBot(client)
+    client.manual_buy_1usd_btc(client)
     bot.run()
