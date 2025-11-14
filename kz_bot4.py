@@ -97,18 +97,7 @@ class ExchangeClient:
         # 展平成 { "USD": 50000, ... }
         flat = {asset: info["Free"] for asset, info in wallet.items()}
         return flat
-
-
-    def place_order(self, symbol: str, side: str, amount: float):
-        if amount == 0: return
-        if DRY_RUN:
-            logger.info(f"[DRY] 模拟 {side} {abs(amount):.6f} {symbol}")
-            return {"status": "filled"}
-        try:
-            return self.roostoo.place_order(symbol, side, abs(amount))
-        except Exception as e:
-            logger.error(f"下单失败 {symbol}: {e}")
-
+    
     def manual_buy_1usd_btc(self):
         """手动买入价值1 USD的比特币"""
         symbol = "BTC/USD"
@@ -123,6 +112,18 @@ class ExchangeClient:
             logger.info(f"手动买入 {amount:.8f} BTC 完成")
         except Exception as e:
             logger.error(f"手动买入失败: {e}")
+
+    def place_order(self, symbol: str, side: str, amount: float):
+        if amount == 0: return
+        if DRY_RUN:
+            logger.info(f"[DRY] 模拟 {side} {abs(amount):.6f} {symbol}")
+            return {"status": "filled"}
+        try:
+            return self.roostoo.place_order(symbol, side, abs(amount))
+        except Exception as e:
+            logger.error(f"下单失败 {symbol}: {e}")
+
+    
 
 # ==================== 核心策略 ====================
 class DynamicMomentumBot:
@@ -264,4 +265,5 @@ class DynamicMomentumBot:
 if __name__ == "__main__":
     client = ExchangeClient()
     bot = DynamicMomentumBot(client)
+    client.manual_buy_1usd_btc()
     bot.run()
