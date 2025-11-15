@@ -119,7 +119,7 @@ class ExchangeClient:
                 raise ValueError("无效的价格")
             amount = usd_amount / price
             logger.info(f"计算得到买入数量: {amount:.8f} BTC (价值约 ${usd_amount})")
-            self.place_order(symbol, "buy", amount)
+            self.place_order(symbol, "BUY", amount)
             logger.info(f"手动买入 {amount:.8f} BTC 完成")
         except Exception as e:
             logger.error(f"手动买入失败: {e}")
@@ -232,7 +232,7 @@ class DynamicMomentumBot:
 
                 if abs(diff_usd) > 20:  # 最小交易额
                     amount = diff_usd / prices[sym]
-                    side = "buy" if amount > 0 else "sell"
+                    side = "BUY" if amount > 0 else "sell"
                     self.client.place_order(sym, side, amount)
                     logger.info(f"→ {side.upper()} {abs(amount):.6f} {sym} (${abs(diff_usd):,.0f})")
 
