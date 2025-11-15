@@ -155,17 +155,32 @@ class RoostooClient:
             "MSG-SIGNATURE": signature,
         }
 
-        url = BASE_URL + endpoint
+        url = self.base_url + endpoint  # use self.base_url for consistency
 
-        if method == "GET":
-            r = self.session.get(url, params=data, headers=headers)
-        else:
-            # 官方 DEMO 使用 POST form-data (data=payload)
-            r = self.session.post(url, data=data, headers=headers)
+        try:
+            if method == "GET":
+                response = self.session.get(url, params=data, headers=headers)
+            else:
+                response = self.session.post(url, data=data, headers=headers)
 
-        # 官方 DEMO 只打印，不 raise 异常
-        print(r.status_code, r.text)
-        return r
+            # 抛出 HTTPError（4xx/5xx）
+            response.raise_for_status()
+
+            # 尝试解析 JSON 并返回 dict（或 list）
+            try:
+                return response.json()
+            except ValueError:
+                # 返回非 JSON（极少见），把文本包装成 dict 供上层检查
+                logger.error(f"非 JSON 响应: {response.text}")
+                return {"raw_text": response.text, "status_code": response.status_code}
+
+        except requests.HTTPError as http_err:
+            logger.error(f"HTTP error for {endpoint}: {http_err} | {response.text if 'response' in locals() else ''}")
+            raise
+        except Exception as e:
+            logger.error(f"API 请求失败: {endpoint} | {str(e)}")
+            raise
+
 
     # === ✔ 完全与官方 DEMO 行为相同的 place_order ===
     def place_order(self, pair, side, quantity, price=None):
