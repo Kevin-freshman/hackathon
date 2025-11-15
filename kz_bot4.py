@@ -156,23 +156,7 @@ class DynamicMomentumBot:
             if not self.risk.check(total_value, positions):
                 logger.info("风控暂停交易，观望中...")
                 return
-            '''
-            # 4. 计算动量得分（过去15分钟涨幅）
-            momentum_targets = {}  # {sym: target_usd}
-            for sym in SYMBOLS:
-                try:
-                    data = self.horus.get_market_price(
-                        pair=sym.replace("/", ""), limit=2
-                    )
-                    logger.info(f"data数据为{data}")
-                    ret = (data[0]["close"] / data[1]["close"]) - 1
-                    target_usd = ret * BASE_PER_PERCENT * 100  # 百分比 → 美元
-                    momentum_targets[sym] = max(target_usd, -usd * 0.5)  # 防卖空
-                except:
-                    momentum_targets[sym] = 0
-
-            logger.info(f"动量目标: { {s: f'${v:,.0f}' for s,v in momentum_targets.items() } }")
-            '''
+            
         #    4. 计算动量得分（过去15分钟涨幅）
             momentum_targets = {}  # {sym: target_usd}
             # 在动量计算部分修改为：
@@ -252,7 +236,8 @@ class DynamicMomentumBot:
                     self.client.place_order(sym, side, amount)
                     logger.info(f"→ {side.upper()} {abs(amount):.6f} {sym} (${abs(diff_usd):,.0f})")
 
-                ExchangeClient.get_balance()
+                new_balance= ExchangeClient.get_balance()
+                logger.info(f"购买后现金余额为{new_balance}")
 
         except Exception as e:
             logger.error(f"step 错误: {e}", exc_info=True)
