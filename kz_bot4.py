@@ -16,6 +16,7 @@ import numpy as np
 from loguru import logger
 from roostoo_client import RoostooClient
 from horus_client3 import HorusClient
+import math
 
 # ==================== 配置 ====================
 DRY_RUN = False
@@ -31,6 +32,7 @@ SYMBOLS = [
     "TIA/USD", "JTO/USD", "JUP/USD", "QNT/USD", "FORM/USD", "INJ/USD",
     "STX/USD"
 ]
+
 BASE_PER_PERCENT = 2000  # 每涨 1% 分配 $2,000
 INTERVAL = 3600  # 60 分钟调仓一次
 
@@ -105,6 +107,7 @@ class ExchangeClient:
             logger.info(f"[DRY] 模拟 {side} {abs(amount):.6f} {symbol}")
             return {"status": "filled"}
         try:
+            
             return self.roostoo.place_order(symbol, side, abs(amount))
         except Exception as e:
             logger.error(f"下单失败 {symbol}: {e}")
@@ -130,6 +133,37 @@ class ExchangeClient:
             logger.info(f"手动买入 {amount:.4f} BTC 完成")
         except Exception as e:
             logger.error(f"手动买入失败: {e}")
+
+
+
+    def load_trade_rules_from_exchange_info(self):
+        info = RoostooClient.get_ex_info()
+        trade_rules = {}
+
+        for sym_info in info["Symbols"]:
+            symbol = sym_info["Symbol"]
+            qty_precision = 0
+            price_precision = 0
+            step_size = 0.0
+            tick_size = 0.0
+
+            for f in sym_info["Filters"]:
+                if f["FilterType"] == "LOT_SIZE":
+                    step_size = float(f["StepSize"])
+                    qty_precision = abs(int(round(math.log10(1 / step_size))))
+                if f["FilterType"] == "PRICE_FILTER":
+                    tick_size = float(f["TickSize"])
+                    price_precision = abs(int(round(math.log10(1 / tick_size))))
+
+            trade_rules[symbol] = {
+                "step_size": step_size,
+                "tick_size": tick_size,
+                "qty_precision": qty_precision,
+                "price_precision": price_precision,
+            }
+
+        return trade_rules
+
 
 # ==================== 核心策略 ====================
 class DynamicMomentumBot:
@@ -234,9 +268,17 @@ class DynamicMomentumBot:
                 else:
                     amount = diff_usd / prices[sym]
 
-                if abs(diff_usd) > 20 and abs(amount) >= 0.0001:  # 最小交易额
+                
+                rule = TRADE_RULES[sym]
+                step = rule["step_size"]
+
+                amount = math.floor(amount / step) * step
+                amount = round(amount, rule["qty_precision"])
+
+
+                if abs(diff_usd) > 20 and abs(amount) > 0.:  # 最小交易额
                     side = "BUY" if amount > 0 else "SELL"
-                    self.client.place_order(sym, side, amount)
+                    self.client.place_order(sym, side, abs(amount))
                     logger.info(f"→ {side.upper()} {abs(amount):.6f} {sym} (${abs(diff_usd):,.0f})")
                     new_balance= self.client.get_balance()
                     logger.info(f"交易后现金余额为{new_balance}")
@@ -257,7 +299,7 @@ if __name__ == "__main__":
     initial_wallet = client.get_balance()
     INITIAL_CASH = initial_wallet.get("USD", 0)
     time.sleep(1)
+    TRADE_RULES = client.load_trade_rules_from_exchange_info()
     bot = DynamicMomentumBot(client, INITIAL_CASH)
     #client.manual_buy_1usd_btc()
-    RoostooClient.get_ex_info()
     bot.run()
