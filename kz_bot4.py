@@ -42,8 +42,9 @@ class RiskManager:
         self.max_drawdown = 0.10
         self.max_per_asset = 0.35
         self.daily_loss_limit = 0.04
-        self.peak = initial_cash
+        self.peak = float(initial_cash or 0)
         self.today_pnl = 0.0
+        self.initial_cash = float(initial_cash or 0)
 
     def check(self, total_value: float, positions: Dict) -> bool:
         # 1. 最大回撤
@@ -59,7 +60,7 @@ class RiskManager:
                 return False
 
         # 3. 每日亏损熔断
-        if self.today_pnl < -self.daily_loss_limit * INITIAL_CASH:
+        if self.today_pnl < -self.daily_loss_limit * self.initial_cash:
             logger.warning("风控触发：当日亏损超4%")
             return False
 
@@ -233,7 +234,6 @@ class DynamicMomentumBot:
                 else:
                     amount = diff_usd / prices[sym]
 
-                amount = diff_usd / prices[sym]
                 if abs(diff_usd) > 20 and abs(amount) >= 0.0001:  # 最小交易额
                     side = "BUY" if amount > 0 else "SELL"
                     self.client.place_order(sym, side, amount)
