@@ -20,16 +20,18 @@ import math
 
 # ==================== 配置 ====================
 DRY_RUN = False
+
 SYMBOLS = [
     "BTC/USD", "ETH/USD", "XRP/USD", "BNB/USD", "SOL/USD", "DOGE/USD",
-    "TRX/USD", "ADA/USD", "XLM/USD", "SUI/USD", "HBAR/USD",
-    "LINK/USD",  "UNI/USD", "AVAX/USD", "SHIB/USD",
+    "TRX/USD", "ADA/USD", "XLM/USD", "WBTC/USD", "SUI/USD", "HBAR/USD",
+    "LINK/USD", "BCH/USD", "WBETH/USD", "UNI/USD", "AVAX/USD", "SHIB/USD",
     "TON/USD", "LTC/USD", "DOT/USD", "PEPE/USD", "AAVE/USD", "ONDO/USD",
     "TAO/USD", "WLD/USD", "APT/USD", "NEAR/USD", "ARB/USD", "ICP/USD",
-    "ETC/USD", "FIL/USD", "TRUMP/USD", "OP/USD", "POL/USD",
-    "BONK/USD", "ENA/USD", "VET/USD", "SEI/USD", "RENDER/USD",
-    "FET/USD", "VIRTUAL/USD", 
-    "QNT/USD", "FORM/USD", 
+    "ETC/USD", "FIL/USD", "TRUMP/USD", "OP/USD", "ALGO/USD", "POL/USD",
+    "BONK/USD", "ENA/USD", "ENS/USD", "VET/USD", "SEI/USD", "RENDER/USD",
+    "FET/USD", "ATOM/USD", "VIRTUAL/USD", "SKY/USD", "BNSOL/USD", "RAY/USD",
+    "TIA/USD", "JTO/USD", "JUP/USD", "QNT/USD", "FORM/USD", "INJ/USD",
+    "STX/USD"
 ]
 
 BASE_PER_PERCENT = 2000  # 每涨 1% 分配 $2,000
@@ -198,6 +200,9 @@ class DynamicMomentumBot:
             momentum_targets = {}  # {sym: target_usd}
             # 在动量计算部分修改为：
             for sym in SYMBOLS:
+                if sym not in TRADE_RULES:
+                    logger.error(f"❌ symbol {sym} not in TRADE_RULES，跳过此行情")
+                    continue
                 try:
                     asset = sym.split("/")[0]
                     # 使用正确的方法和参数
