@@ -252,6 +252,8 @@ class DynamicMomentumBot:
                     self.client.place_order(sym, side, amount)
                     logger.info(f"→ {side.upper()} {abs(amount):.6f} {sym} (${abs(diff_usd):,.0f})")
 
+                ExchangeClient.get_balance()
+
         except Exception as e:
             logger.error(f"step 错误: {e}", exc_info=True)
 
