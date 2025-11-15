@@ -60,6 +60,15 @@ class RoostooClient:
             logger.error(f"API 请求失败: {endpoint} | {response.text if 'response' in locals() else str(e)}")
             raise
 
+    '''
+    def generate_signature(params):
+        query_string = '&'.join(["{}={}".format(k, params[k])
+                                for k in sorted(params.keys())])
+        us = API_SECRET.encode('utf-8')
+        m = hmac.new(us, query_string.encode('utf-8'), hashlib.sha256)
+        return m.hexdigest()
+    '''
+        
     # 🧩 各种接口封装
     def get_server_time(self):
         return self._sign_and_request("GET", "/v3/serverTime")
@@ -72,6 +81,7 @@ class RoostooClient:
 
     def place_order(self, pair, side, quantity, price=None):
         payload = {
+            "timestamp": int(time.time()) * 1000,
             "pair": pair,
             "side": side.upper(),
             "quantity": float(quantity),
@@ -80,7 +90,31 @@ class RoostooClient:
         if price is not None:
             payload["price"] = float(price)
         return self._sign_and_request("POST", "/v3/place_order", data=payload)
+    
+    '''
+    def place_order(coin, side, qty, price=None):
+        payload = {
+            "timestamp": int(time.time()) * 1000,
+            "pair": coin + "/USD",
+            "side": side,
+            "quantity": qty,
+        }
 
+        if not price:
+            payload['type'] = "MARKET"
+        else:
+            payload['type'] = "LIMIT"
+            payload['price'] = price
+
+        r = requests.post(
+            BASE_URL + "/v3/place_order",
+            data=payload,
+            headers={"RST-API-KEY": API_KEY,
+                    "MSG-SIGNATURE": generate_signature(payload)}
+        )
+        print (r.status_code, r.text)
+    '''
+        
     def cancel_order(self, pair, order_id=None):
         payload = {"pair": pair}
         if order_id:
