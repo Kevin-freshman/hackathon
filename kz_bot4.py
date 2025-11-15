@@ -32,7 +32,7 @@ SYMBOLS = [
     "STX/USD"
 ]
 BASE_PER_PERCENT = 2000  # 每涨 1% 分配 $2,000
-INTERVAL = 3600  # 60 分钟调仓一次
+INTERVAL = 30  # 60 分钟调仓一次
 
 logger.add("champion_bot.log", rotation="10 MB", level="INFO", enqueue=True)
 
@@ -231,12 +231,11 @@ class DynamicMomentumBot:
 
                 if abs(diff_usd) > 20:  # 最小交易额
                     amount = diff_usd / prices[sym]
-                    side = "BUY" if amount > 0 else "sell"
+                    side = "BUY" if amount > 0 else "SELL"
                     self.client.place_order(sym, side, amount)
                     logger.info(f"→ {side.upper()} {abs(amount):.6f} {sym} (${abs(diff_usd):,.0f})")
-
-                new_balance= self.client.get_balance()
-                logger.info(f"购买后现金余额为{new_balance}")
+                    new_balance= self.client.get_balance()
+                    logger.info(f"交易后现金余额为{new_balance}")
 
         except Exception as e:
             logger.error(f"step 错误: {e}", exc_info=True)
