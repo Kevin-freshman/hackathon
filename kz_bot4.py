@@ -236,7 +236,7 @@ class DynamicMomentumBot:
                     self.client.place_order(sym, side, amount)
                     logger.info(f"→ {side.upper()} {abs(amount):.6f} {sym} (${abs(diff_usd):,.0f})")
 
-                new_balance= ExchangeClient.get_balance()
+                new_balance= ExchangeClient.get_balance(self)
                 logger.info(f"购买后现金余额为{new_balance}")
 
         except Exception as e:
