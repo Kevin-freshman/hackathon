@@ -30,11 +30,16 @@ class RoostooClient:
         
 
     # ✅ 正确签名函数
-    def sign(self, params: dict = None):
-        params = params or {}
-        query = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
-        return hmac.new(self.api_secret.encode(), query.encode(), hashlib.sha256).hexdigest()
+    def sign(self, params: dict):
+        query_string = "&".join(f"{k}={params[k]}" for k in sorted(params.keys()))
+        return hmac.new(
+            self.api_secret.encode("utf-8"),
+            query_string.encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
 
+
+    '''
     # ✅ 核心请求函数
     def _sign_and_request(self, method, endpoint, params=None, data=None):
         params = params or {}
@@ -60,6 +65,15 @@ class RoostooClient:
             logger.error(f"API 请求失败: {endpoint} | {response.text if 'response' in locals() else str(e)}")
             raise
 
+    
+    def generate_signature(params):
+        query_string = '&'.join(["{}={}".format(k, params[k])
+                                for k in sorted(params.keys())])
+        us = API_SECRET.encode('utf-8')
+        m = hmac.new(us, query_string.encode('utf-8'), hashlib.sha256)
+        return m.hexdigest()
+    '''
+        
     # 🧩 各种接口封装
     def get_server_time(self):
         return self._sign_and_request("GET", "/v3/serverTime")
@@ -69,9 +83,19 @@ class RoostooClient:
 
     def get_balance(self):
         return self._sign_and_request("GET", "/v3/balance")
+    
+    def get_ex_info():
+        r = requests.get(
+            BASE_URL + "/v3/exchangeInfo",
+        )
+        print (r.status_code, r.text)
+        return r.json()
 
+
+    '''
     def place_order(self, pair, side, quantity, price=None):
         payload = {
+            "timestamp": int(time.time()) * 1000,
             "pair": pair,
             "side": side.upper(),
             "quantity": float(quantity),
@@ -81,6 +105,30 @@ class RoostooClient:
             payload["price"] = float(price)
         return self._sign_and_request("POST", "/v3/place_order", data=payload)
 
+    
+    def place_order(coin, side, qty, price=None):
+        payload = {
+            "timestamp": int(time.time()) * 1000,
+            "pair": coin + "/USD",
+            "side": side,
+            "quantity": qty,
+        }
+
+        if not price:
+            payload['type'] = "MARKET"
+        else:
+            payload['type'] = "LIMIT"
+            payload['price'] = price
+
+        r = requests.post(
+            BASE_URL + "/v3/place_order",
+            data=payload,
+            headers={"RST-API-KEY": API_KEY,
+                    "MSG-SIGNATURE": generate_signature(payload)}
+        )
+        print (r.status_code, r.text)
+    '''
+        
     def cancel_order(self, pair, order_id=None):
         payload = {"pair": pair}
         if order_id:
@@ -99,3 +147,70 @@ class RoostooClient:
 
     def pending_count(self):
         return self._sign_and_request("GET", "/v3/pending_count")
+    
+
+
+
+    def _sign_and_request(self, method, endpoint, data=None):
+        data = data or {}
+
+        # 官方：timestamp = int(time.time()) * 1000
+        data["timestamp"] = int(time.time()) * 1000
+
+        signature = self.sign(data)
+
+        headers = {
+            "RST-API-KEY": self.api_key,
+            "MSG-SIGNATURE": signature,
+        }
+
+        url = self.base_url + endpoint  # use self.base_url for consistency
+
+        try:
+            if method == "GET":
+                response = self.session.get(url, params=data, headers=headers)
+            else:
+                response = self.session.post(url, data=data, headers=headers)
+
+            # 抛出 HTTPError（4xx/5xx）
+            response.raise_for_status()
+
+            # 尝试解析 JSON 并返回 dict（或 list）
+            try:
+                return response.json()
+            except ValueError:
+                # 返回非 JSON（极少见），把文本包装成 dict 供上层检查
+                logger.error(f"非 JSON 响应: {response.text}")
+                return {"raw_text": response.text, "status_code": response.status_code}
+
+        except requests.HTTPError as http_err:
+            logger.error(f"HTTP error for {endpoint}: {http_err} | {response.text if 'response' in locals() else ''}")
+            raise
+        except Exception as e:
+            logger.error(f"API 请求失败: {endpoint} | {str(e)}")
+            raise
+
+
+    # === ✔ 完全与官方 DEMO 行为相同的 place_order ===
+    def place_order(self, pair, side, quantity, price=None):
+        payload = {
+            "pair": pair,             # 与官方一致：pair= "BTC/USD"
+            "side": side,             # 不转大写，保持用户输入
+            "quantity": quantity,     # 不转 float，保持原样
+        }
+
+        # 官方 DEMO：MARKET / LIMIT 判断方式
+        if price is None:
+            payload["type"] = "MARKET"
+        else:
+            payload["type"] = "LIMIT"
+            payload["price"] = price  # 不转 float
+
+        logger.info(f"[Roostoo] place_order payload = {payload}")
+
+        resp = self._sign_and_request("POST", "/v3/place_order", data=payload)
+
+        logger.info(f"[Roostoo] place_order response = {resp}")
+
+        # 调用与官方一致的签名+POST
+        return self._sign_and_request("POST", "/v3/place_order", data=payload)
