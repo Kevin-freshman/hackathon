@@ -1,9 +1,9 @@
-<h1 style="font-size: 28px; text-align: center;">
+<h1 style="font-size: 28px; align: center;">
 Trading Bot for Hackathon
 </h1>
-<h2 style="font-size: 22px; text-align: center;">
+<p style="font-size: 20px; align: center;">
 Group 48 Chenyu ZHANG
-</h2>
+</p>
 
 * An automated cryptocurrency trading bot designed for a hackathon competition
 * Interacts with the Horus API to perform real-time trading operations, manage balances, and execute a parameter-driven trading strategy
@@ -32,6 +32,7 @@ Every hour, for each of the 56 cryptocurrencies, calculate its recent performanc
 ret = (recent_data[1]["price"] / recent_data[0]["price"]) 1
 ```
 
+<br>
 
 ### STEP 2: Size Positions
 Translates all momentum signals into a concrete trading decision using a formula:
@@ -57,6 +58,7 @@ Ensure each trade meaningfully impacts the portfolio, avoiding "noise trading."
 abs(diff_usd) > 50
 ```
 
+<br>
 
 ### 2.Precision Layer Step Size and Precision Adjustment
 Ensure order quantities meet exchange precision and step size requirements, avoiding format rejection.
@@ -99,6 +101,7 @@ except Exception as e:
     momentum_targets[sym] = 0
 ```
 
+<br>
 
 ### 2.Sell-Side Protection: No Over-Selling
 Prevent attempting to sell more than current holdings, avoiding short positions and exchange errors.
@@ -114,6 +117,7 @@ else:
     amount = diff_usd / prices[sym]
 ```
 
+<br>
 
 ### 3.Buy-Side Protection: Cash Buffer Protection: 0.5%
 Maintain liquidity and prevent over-leverage by preserving cash reserves.
@@ -124,6 +128,7 @@ if diff_usd > 0:
         diff_usd = max_buyable
 ```
 
+<br>
 
 ### 4.Maximum Drawdown Protection: 10%
 Triggers complete trading suspension if 10% drawdown from peak is breached
@@ -135,6 +140,7 @@ if (self.peak total_value) / self.peak > self.max_drawdown:
     return False
 ```
 
+<br>
 
 ### 5.Single Asset Exposure Limit: 35%
 Prevent over-concentration in any single cryptocurrency, ensuring proper diversification.
@@ -146,6 +152,7 @@ for value in positions.values():
             return False
 ```
 
+<br>
 
 ### 6.Daily Loss Circuit Breaker: 4%
 Automatic shutdown if daily losses exceed 4% of starting capital.
