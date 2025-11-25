@@ -190,7 +190,7 @@ if self.today_pnl < -self.daily_loss_limit * self.initial_cash:
 <br>
 <br>
 
-## Team Members 团队成员
+## Team Members
 
 **Team Lead**  
 Chenyu Zhang, Kevin - Strategy development & risk management
