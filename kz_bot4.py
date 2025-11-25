@@ -16,10 +16,11 @@ import numpy as np
 from loguru import logger
 from roostoo_client import RoostooClient
 from horus_client3 import HorusClient
+import math
 
 # ==================== 配置 ====================
-INITIAL_CASH = 500_000
 DRY_RUN = False
+
 SYMBOLS = [
     "BTC/USD", "ETH/USD", "XRP/USD", "BNB/USD", "SOL/USD", "DOGE/USD",
     "TRX/USD", "ADA/USD", "XLM/USD", "WBTC/USD", "SUI/USD", "HBAR/USD",
@@ -32,19 +33,21 @@ SYMBOLS = [
     "TIA/USD", "JTO/USD", "JUP/USD", "QNT/USD", "FORM/USD", "INJ/USD",
     "STX/USD"
 ]
+
 BASE_PER_PERCENT = 2000  # 每涨 1% 分配 $2,000
-INTERVAL = 3600  # 60 分钟调仓一次
+INTERVAL = 3600  # 15 分钟调仓一次
 
 logger.add("champion_bot.log", rotation="10 MB", level="INFO", enqueue=True)
 
 # ==================== 风控铁律 ====================
 class RiskManager:
-    def __init__(self):
+    def __init__(self, initial_cash):
         self.max_drawdown = 0.10
         self.max_per_asset = 0.35
         self.daily_loss_limit = 0.04
-        self.peak = INITIAL_CASH
+        self.peak = float(initial_cash or 0)
         self.today_pnl = 0.0
+        self.initial_cash = float(initial_cash or 0)
 
     def check(self, total_value: float, positions: Dict) -> bool:
         # 1. 最大回撤
@@ -60,7 +63,7 @@ class RiskManager:
                 return False
 
         # 3. 每日亏损熔断
-        if self.today_pnl < -self.daily_loss_limit * INITIAL_CASH:
+        if self.today_pnl < -self.daily_loss_limit * self.initial_cash:
             logger.warning("风控触发：当日亏损超4%")
             return False
 
@@ -97,21 +100,7 @@ class ExchangeClient:
         # 展平成 { "USD": 50000, ... }
         flat = {asset: info["Free"] for asset, info in wallet.items()}
         return flat
-    
-    def manual_buy_1usd_btc(self):
-        """手动买入价值1 USD的比特币"""
-        symbol = "BTC/USD"
-        usd_amount = 1.0
-        try:
-            price = self.fetch_price(symbol)
-            if price <= 0:
-                raise ValueError("无效的价格")
-            amount = usd_amount / price
-            logger.info(f"计算得到买入数量: {amount:.8f} BTC (价值约 ${usd_amount})")
-            self.place_order(symbol, "buy", amount)
-            logger.info(f"手动买入 {amount:.8f} BTC 完成")
-        except Exception as e:
-            logger.error(f"手动买入失败: {e}")
+
 
     def place_order(self, symbol: str, side: str, amount: float):
         if amount == 0: return
@@ -119,17 +108,66 @@ class ExchangeClient:
             logger.info(f"[DRY] 模拟 {side} {abs(amount):.6f} {symbol}")
             return {"status": "filled"}
         try:
+            
             return self.roostoo.place_order(symbol, side, abs(amount))
         except Exception as e:
             logger.error(f"下单失败 {symbol}: {e}")
 
-    
+    def manual_buy_1usd_btc(self):
+        """手动买入价值1 USD的比特币"""
+        symbol = "BTC/USD"
+        try:
+            price = self.fetch_price(symbol)
+            if price <= 0:
+                raise ValueError("无效的价格")
+                
+            usd_amount = 1.0
+            amount = usd_amount / price
+            # 最小单位
+            MIN_QTY = 0.0001
+            # 交易所不接受少于 0.0001 BTC
+            amount = max(amount, MIN_QTY)
+            # 精度限制为 4 位
+            amount = round(amount, 4)
+            logger.info(f"计算得到买入数量: {amount:.8f} BTC (价值约 ${usd_amount})")
+            self.place_order(symbol, "BUY", amount)
+            logger.info(f"手动买入 {amount:.4f} BTC 完成")
+        except Exception as e:
+            logger.error(f"手动买入失败: {e}")
+
+
+
+    def load_trade_rules_from_exchange_info(self):
+        info = RoostooClient.get_ex_info()
+        trade_rules = {}
+
+        # Roostoo 返回的是："TradePairs": { "BTC/USD": {...}, ... }
+        # 所以这里要写 .items()
+        for symbol, conf in info["TradePairs"].items():
+
+            # Roostoo 结构里没有 Filters，所以直接从 conf 取字段
+            qty_precision = conf.get("AmountPrecision", 0)
+            price_precision = conf.get("PricePrecision", 0)
+
+            # 你原本的 step_size 逻辑是基于 LOT_SIZE，现在没有 LOT_SIZE，我们用精度换算
+            step_size = float(10 ** (-qty_precision))
+            tick_size = float(10 ** (-price_precision))
+
+            trade_rules[symbol] = {
+                "step_size": step_size,
+                "tick_size": tick_size,
+                "qty_precision": qty_precision,
+                "price_precision": price_precision,
+            }
+
+        return trade_rules
+
 
 # ==================== 核心策略 ====================
 class DynamicMomentumBot:
-    def __init__(self, client):
+    def __init__(self, client, INITIAL_CASH):
         self.client = client
-        self.risk = RiskManager()
+        self.risk = RiskManager(INITIAL_CASH)
 
     def step(self):
         try:
@@ -157,27 +195,14 @@ class DynamicMomentumBot:
             if not self.risk.check(total_value, positions):
                 logger.info("风控暂停交易，观望中...")
                 return
-            '''
-            # 4. 计算动量得分（过去15分钟涨幅）
-            momentum_targets = {}  # {sym: target_usd}
-            for sym in SYMBOLS:
-                try:
-                    data = self.horus.get_market_price(
-                        pair=sym.replace("/", ""), limit=2
-                    )
-                    logger.info(f"data数据为{data}")
-                    ret = (data[0]["close"] / data[1]["close"]) - 1
-                    target_usd = ret * BASE_PER_PERCENT * 100  # 百分比 → 美元
-                    momentum_targets[sym] = max(target_usd, -usd * 0.5)  # 防卖空
-                except:
-                    momentum_targets[sym] = 0
-
-            logger.info(f"动量目标: { {s: f'${v:,.0f}' for s,v in momentum_targets.items() } }")
-            '''
+            
         #    4. 计算动量得分（过去15分钟涨幅）
             momentum_targets = {}  # {sym: target_usd}
             # 在动量计算部分修改为：
             for sym in SYMBOLS:
+                if sym not in TRADE_RULES:
+                    logger.error(f"❌ symbol {sym} not in TRADE_RULES，跳过此行情")
+                    continue
                 try:
                     asset = sym.split("/")[0]
                     # 使用正确的方法和参数
@@ -185,7 +210,7 @@ class DynamicMomentumBot:
                         asset=asset, 
                         # interval="15m",  # 使用15分钟间隔
                         # 计算合适的时间范围来获取最近2个数据点
-                        interval="15m",
+                        interval="1h",
                         limit = 2
                     )
                     
@@ -244,14 +269,20 @@ class DynamicMomentumBot:
                 else:
                     amount = diff_usd / prices[sym]
 
+                
+                rule = TRADE_RULES[sym]
+                step = rule["step_size"]
+
+                amount = math.floor(amount / step) * step
+                amount = round(amount, rule["qty_precision"])
 
 
-
-                if abs(diff_usd) > 20:  # 最小交易额
-                    amount = diff_usd / prices[sym]
-                    side = "buy" if amount > 0 else "sell"
-                    self.client.place_order(sym, side, amount)
+                if abs(diff_usd) > 50 and abs(amount) > 0.:  # 最小交易额
+                    side = "BUY" if amount > 0 else "SELL"
+                    self.client.place_order(sym, side, abs(amount))
                     logger.info(f"→ {side.upper()} {abs(amount):.6f} {sym} (${abs(diff_usd):,.0f})")
+                    new_balance= self.client.get_balance()
+                    logger.info(f"交易后现金余额为{new_balance}")
 
         except Exception as e:
             logger.error(f"step 错误: {e}", exc_info=True)
@@ -261,9 +292,16 @@ class DynamicMomentumBot:
             self.step()
             time.sleep(INTERVAL)
 
+
+
 # ==================== 主程序 ====================
 if __name__ == "__main__":
     client = ExchangeClient()
-    bot = DynamicMomentumBot(client)
-    client.manual_buy_1usd_btc()
+    initial_wallet = client.get_balance()
+    INITIAL_CASH = initial_wallet.get("USD", 0)
+    time.sleep(1)
+    TRADE_RULES = client.load_trade_rules_from_exchange_info()
+    logger.info(TRADE_RULES)
+    bot = DynamicMomentumBot(client, INITIAL_CASH)
+    #client.manual_buy_1usd_btc()
     bot.run()
